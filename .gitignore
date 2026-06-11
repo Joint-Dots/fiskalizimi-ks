@@ -1,0 +1,31 @@
+/vendor/
+/node_modules/
+
+# PHPUnit
+.phpunit.result.cache
+.phpunit.cache/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Composer
+composer.lock
+/.release-artifacts/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# PDFs / local docs
+*.pdf
+/docs/
+/CONTEXT.md
+/Development-Plan-Fiskalizimi-SEF.md
+/RELEASE.md

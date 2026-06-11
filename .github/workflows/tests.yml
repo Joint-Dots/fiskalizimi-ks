@@ -1,0 +1,53 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php: "8.2"
+            laravel: "^11.0"
+            testbench: "^9.0"
+            phpunit: "^11.0"
+          - php: "8.3"
+            laravel: "^12.0"
+            testbench: "^10.0"
+            phpunit: "^12.0"
+          - php: "8.4"
+            laravel: "^13.0"
+            testbench: "^11.0"
+            phpunit: "^13.0"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, openssl, pdo_sqlite
+          coverage: none
+
+      - name: Pin framework test matrix
+        run: |
+          composer require "laravel/framework:${{ matrix.laravel }}" --no-interaction --no-update
+          composer require --dev "orchestra/testbench:${{ matrix.testbench }}" "phpunit/phpunit:${{ matrix.phpunit }}" --no-interaction --no-update
+
+      - name: Install dependencies
+        run: composer update --prefer-dist --no-interaction --no-progress
+
+      - name: Validate package
+        run: composer validate --strict --no-check-lock
+
+      - name: Run tests
+        run: composer test
+
