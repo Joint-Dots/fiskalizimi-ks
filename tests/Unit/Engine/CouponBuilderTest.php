@@ -25,7 +25,10 @@ class CouponBuilderTest extends TestCase
         parent::setUp();
 
         $this->builder  = new CouponBuilder();
-        $this->snapshot = CouponSnapshot::generate(existsChecker: fn() => false);
+        $this->snapshot = CouponSnapshot::generate(
+            existsChecker: fn() => false,
+            verificationNo: '0000000000000001',
+        );
         $this->config   = new FiscalConfig(
             businessId: 1001,
             applicationId: 42,
@@ -50,6 +53,74 @@ class CouponBuilderTest extends TestCase
 
         $this->assertSame($built->posCoupon->getVerificationNo(), $built->citizenCoupon->getVerificationNo());
         $this->assertSame($this->snapshot->verificationNo, $built->posCoupon->getVerificationNo());
+    }
+
+    /**
+     * ATK verifies the citizen QR against the submitted POS payload, so every
+     * field the two encodings share must agree. Multiple tax groups are used
+     * deliberately: a per-rate comparison that collapses duplicates would miss
+     * a divergence in group count.
+     */
+    public function test_pos_and_citizen_coupons_agree_on_every_shared_field(): void
+    {
+        $data = new CouponData(
+            items: [
+                new ItemData('Produkt A', 10000, 'cope', 1.0, 1000, 'D'),
+                new ItemData('Produkt B', 20000, 'cope', 1.0, 2000, 'E'),
+                new ItemData('Produkt C', 5000, 'cope', 1.0, 500, 'D'),
+            ],
+            payments:   [new PaymentData(PaymentType::Cash, 3500)],
+            operatorId: 'Cashier',
+        );
+
+        $built = $this->builder->build($this->snapshot, $data, $this->config, couponId: 99);
+        $pos     = $built->posCoupon;
+        $citizen = $built->citizenCoupon;
+
+        $this->assertSame($pos->getBusinessId(), $citizen->getBusinessId());
+        $this->assertSame($pos->getCouponId(), $citizen->getCouponId());
+        $this->assertSame($pos->getBranchId(), $citizen->getBranchId());
+        $this->assertSame($pos->getPosId(), $citizen->getPosId());
+        $this->assertSame($pos->getVerificationNo(), $citizen->getVerificationNo());
+        $this->assertSame($pos->getType(), $citizen->getType());
+        $this->assertSame($pos->getTime(), $citizen->getTime());
+        $this->assertSame($pos->getTotal(), $citizen->getTotal());
+        $this->assertSame($pos->getTotalTax(), $citizen->getTotalTax());
+        $this->assertSame($pos->getTotalNoTax(), $citizen->getTotalNoTax());
+
+        $this->assertSame(
+            $this->taxGroupTuples($pos->getTaxGroups()),
+            $this->taxGroupTuples($citizen->getTaxGroups()),
+        );
+        $this->assertCount(2, $this->taxGroupTuples($pos->getTaxGroups()));
+    }
+
+    /** @return list<array{string, int, int}> */
+    private function taxGroupTuples(iterable $groups): array
+    {
+        $tuples = [];
+
+        foreach ($groups as $group) {
+            $tuples[] = [$group->getTaxRate(), $group->getTotalForTax(), $group->getTotalTax()];
+        }
+
+        return $tuples;
+    }
+
+    /**
+     * The builder must accept every NUIKF the snapshot accepts: point 10 is
+     * alphanumeric, and hex [A-F0-9] would reject a conformant value with G-Z.
+     */
+    public function test_builds_with_an_alphanumeric_verification_number(): void
+    {
+        $snapshot = CouponSnapshot::generate(
+            existsChecker: fn() => false,
+            verificationNo: 'ZZZZ999GGGG00001',
+        );
+
+        $built = $this->builder->build($snapshot, $this->validCouponData(), $this->config, couponId: 99);
+
+        $this->assertSame('ZZZZ999GGGG00001', $built->posCoupon->getVerificationNo());
     }
 
     public function test_pos_coupon_has_operator_id(): void

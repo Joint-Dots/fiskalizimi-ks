@@ -12,6 +12,7 @@ use Jointdots\FiskalizimiKs\Engine\AtkClient;
 use Jointdots\FiskalizimiKs\Engine\CouponBuilder;
 use Jointdots\FiskalizimiKs\Engine\QrGenerator;
 use Jointdots\FiskalizimiKs\Engine\Signer;
+use Jointdots\FiskalizimiKs\Engine\VerificationNo;
 use Jointdots\FiskalizimiKs\FiskalizimiService;
 use Jointdots\FiskalizimiKs\Tests\TestCase;
 
@@ -65,7 +66,7 @@ class AtkSubmissionTest extends TestCase
         $this->assertSame(FiscalStatus::Fiscalized, $result->status);
         $this->assertNotNull($result->transactionNo);
         $this->assertGreaterThan(0, $result->transactionNo);
-        $this->assertSame(16, strlen($result->verificationNo));
+        $this->assertMatchesRegularExpression(VerificationNo::PATTERN, $result->verificationNo);
         $this->assertStringContainsString('|', $result->citizenQr);
     }
 }

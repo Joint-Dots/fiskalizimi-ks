@@ -12,6 +12,12 @@ final class CouponSnapshot
     ) {}
 
     /**
+     * Captures the two identifiers that must stay identical across the POS and
+     * citizen payloads for the lifetime of one coupon.
+     *
+     * Supply a $verificationNo to use an application-owned NUIKF; omit it and
+     * one is generated. See VerificationNo for the conformance rules.
+     *
      * @param callable(string): bool $existsChecker Returns true if verificationNo already exists
      */
     public static function generate(
@@ -19,24 +25,19 @@ final class CouponSnapshot
         ?string $verificationNo = null,
         ?int $time = null,
     ): self {
-        if ($verificationNo !== null) {
-            if (!preg_match('/^[A-F0-9]{16}$/', $verificationNo)) {
-                throw new FiscalConfigurationException(
-                    'Verification number must be exactly 16 uppercase hexadecimal characters.'
-                );
-            }
-
-            if ($existsChecker($verificationNo)) {
-                throw new FiscalConfigurationException('Verification number already exists.');
-            }
-
-            return new self(verificationNo: $verificationNo, time: $time ?? now()->timestamp);
+        if ($verificationNo === null) {
+            return new self(
+                verificationNo: VerificationNo::generateUnique($existsChecker),
+                time: $time ?? now()->timestamp,
+            );
         }
 
-        do {
-            $no = strtoupper(bin2hex(random_bytes(8)));
-        } while ($existsChecker($no));
+        VerificationNo::assertValid($verificationNo);
 
-        return new self(verificationNo: $no, time: $time ?? now()->timestamp);
+        if ($existsChecker($verificationNo)) {
+            throw new FiscalConfigurationException('Verification number already exists.');
+        }
+
+        return new self(verificationNo: $verificationNo, time: $time ?? now()->timestamp);
     }
 }

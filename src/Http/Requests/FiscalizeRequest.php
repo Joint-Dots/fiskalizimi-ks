@@ -8,6 +8,7 @@ use Jointdots\FiskalizimiKs\Dto\CouponType;
 use Jointdots\FiskalizimiKs\Dto\ItemData;
 use Jointdots\FiskalizimiKs\Dto\PaymentData;
 use Jointdots\FiskalizimiKs\Dto\PaymentType;
+use Jointdots\FiskalizimiKs\Engine\VerificationNo;
 
 class FiscalizeRequest extends FormRequest
 {
@@ -20,6 +21,7 @@ class FiscalizeRequest extends FormRequest
     {
         return [
             'idempotency_key'         => ['required', 'string', 'max:64'],
+            'verification_no'         => ['sometimes', 'nullable', 'string', 'regex:' . VerificationNo::PATTERN],
             'operator_id'             => ['required', 'string', 'max:120'],
             'items'                   => ['required', 'array', 'min:1'],
             'items.*.name'            => ['required', 'string', 'max:120'],
@@ -79,6 +81,7 @@ class FiscalizeRequest extends FormRequest
             type:           $type,
             referenceNo:    $this->input('reference_no'),
             idempotencyKey: $this->input('idempotency_key'),
+            verificationNo: $this->input('verification_no'),
             totalDiscount:  (int) $this->input('total_discount', 0),
         );
     }

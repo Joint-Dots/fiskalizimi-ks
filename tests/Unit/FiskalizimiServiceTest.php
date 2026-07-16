@@ -12,6 +12,7 @@ use Jointdots\FiskalizimiKs\Engine\AtkClientInterface;
 use Jointdots\FiskalizimiKs\Engine\CouponBuilder;
 use Jointdots\FiskalizimiKs\Engine\QrGenerator;
 use Jointdots\FiskalizimiKs\Engine\Signer;
+use Jointdots\FiskalizimiKs\Engine\VerificationNo;
 use Jointdots\FiskalizimiKs\Exceptions\FiscalConfigurationException;
 use Jointdots\FiskalizimiKs\Exceptions\FiscalSubmissionException;
 use Jointdots\FiskalizimiKs\FiskalizimiService;
@@ -61,6 +62,22 @@ class FiskalizimiServiceTest extends TestCase
         $this->assertNotEmpty($result->verificationNo);
         $this->assertNotEmpty($result->citizenQr);
         $this->assertStringContainsString('|', $result->citizenQr);
+    }
+
+    /**
+     * The regulation requires the NUIKF to be unique, not sequential, so a
+     * caller without its own counter can omit it and get a generated one.
+     */
+    public function test_fiscalize_without_a_verification_number_generates_one(): void
+    {
+        $atk = Mockery::mock(AtkClientInterface::class);
+        $atk->shouldReceive('submit')->once()->andReturn(9912345);
+
+        $service = new FiskalizimiService(new CouponBuilder(), new Signer(), new QrGenerator(), $atk);
+        $result  = $service->fiscalize($this->couponData(verificationNo: null), $this->config);
+
+        $this->assertSame(FiscalStatus::Fiscalized, $result->status);
+        $this->assertMatchesRegularExpression(VerificationNo::PATTERN, $result->verificationNo);
     }
 
     public function test_atk_failure_returns_queued_result_with_qr(): void
@@ -124,13 +141,16 @@ class FiskalizimiServiceTest extends TestCase
         }
     }
 
-    private function couponData(?string $idempotencyKey = null): CouponData
-    {
+    private function couponData(
+        ?string $idempotencyKey = null,
+        ?string $verificationNo = '0000000000000001',
+    ): CouponData {
         return new CouponData(
             items:          [new ItemData('Produkt A', 10000, 'cope', 1.0, 1000, 'D')],
             payments:       [new PaymentData(PaymentType::Cash, 1000)],
             operatorId:     'Cashier',
             idempotencyKey: $idempotencyKey,
+            verificationNo: $verificationNo,
         );
     }
 }

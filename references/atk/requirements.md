@@ -16,6 +16,42 @@ ATK publications, legislation, certification testing, or written guidance.
 | Availability and time | Provides queue-compatible retry behavior | Maintain service availability, notify users of failures, synchronize and monitor system time, and operate incident response |
 | Certification | Provides reusable integration code and tests | Register the developer and SEF solution, obtain the application ID, complete ATK testing/certification, and notify ATK of relevant changes |
 
+## Fiscal Coupon Identifier (NUIKF)
+
+From *Kerkesat Specifike Teknike dhe Funksionale per Pajisjet Elektronike
+Fiskale / Sistemet Fiskale / Softueret Elektronike Fiskale*, point 10,
+"Numri unik identifikues i kuponit fiskal (NUIKF)":
+
+- Alphanumeric characters, as a single value, with no divisions, dashes or
+  special characters.
+- Unique per coupon.
+- Maximum length of sixteen (16) characters — a maximum, not an exact length.
+
+The regulation requires the NUIKF to be **unique, not sequential**. The phrase
+`ne renditje` describes how the characters are arranged within the one unbroken
+value; it does not require a coupon's NUIKF to exceed the previous coupon's,
+and the regulation names no ordering key. ATK's own English edition renders the
+same phrase as "in the following order:" introducing a component list, and both
+ATK protobuf samples document the field only as "a unique value for each
+coupon, and it is 16 characters long max".
+
+A random sixteen-character value therefore conforms. The package generates one
+when the caller does not supply an application-owned value, and validates
+either against `^[A-Z0-9]{1,16}$`.
+
+### Open questions
+
+- **The Albanian and English editions disagree.** ATK's English edition
+  specifies a *structured* twenty-eight character NUIKF — fiscalization number
+  issued by the TAK Information System, then business unit code, then
+  `DDMMYYYYHHMMSS` (worked example: `0123456789012101012025083078`) — and
+  states no maximum length. The Albanian edition and both protobuf samples
+  state a sixteen character maximum. This package implements the sixteen
+  character rule, on the strength of two sources against one and because
+  `VerificationNo` is the field actually transmitted. Confirm with ATK before
+  certification: if the structured form is current, the NUIKF becomes derived
+  configuration rather than a generated value, and this package is wrong.
+
 ## Core Operational Expectations
 
 - Every fiscal transaction must have a unique identifier and must not be

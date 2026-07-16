@@ -28,18 +28,6 @@ class InjectedIdentifiersTest extends TestCase
         $this->assertGreaterThan(0, $snap->time);
     }
 
-    public function test_snapshot_uses_injected_verification_with_generated_time(): void
-    {
-        $snap = CouponSnapshot::generate(
-            existsChecker: fn (string $no) => false,
-            verificationNo: 'ABCD1234ABCD1234',
-            // time not injected
-        );
-
-        $this->assertSame('ABCD1234ABCD1234', $snap->verificationNo);
-        $this->assertGreaterThan(0, $snap->time);
-    }
-
     public function test_snapshot_retries_when_exists_checker_returns_true(): void
     {
         $calls = 0;
@@ -52,6 +40,18 @@ class InjectedIdentifiersTest extends TestCase
 
         $this->assertSame(2, $calls);
         $this->assertSame(16, strlen($snap->verificationNo));
+    }
+
+    public function test_snapshot_uses_injected_verification_with_generated_time(): void
+    {
+        $snap = CouponSnapshot::generate(
+            existsChecker: fn (string $no) => false,
+            verificationNo: 'ABCD1234ABCD1234',
+            // time not injected
+        );
+
+        $this->assertSame('ABCD1234ABCD1234', $snap->verificationNo);
+        $this->assertGreaterThan(0, $snap->time);
     }
 
     public function test_injected_verification_number_must_be_unique(): void
@@ -68,7 +68,7 @@ class InjectedIdentifiersTest extends TestCase
     public function test_injected_verification_number_must_match_atk_format(): void
     {
         $this->expectException(FiscalConfigurationException::class);
-        $this->expectExceptionMessageMatches('/16 uppercase hexadecimal/i');
+        $this->expectExceptionMessageMatches('/16 uppercase alphanumeric/i');
 
         CouponSnapshot::generate(
             existsChecker: fn (string $no) => false,

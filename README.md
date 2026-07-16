@@ -144,6 +144,18 @@ $result = Fiscalizer::fiscalize(
 For returns and cancellations, set `CouponData::type` and provide the original
 coupon ID in `referenceNo`. A sale must not include a reference number.
 
+### Fiscal Coupon Identifier (NUIKF)
+
+The package generates a conformant NUIKF for each coupon — a unique, random,
+16-character alphanumeric value — so `verificationNo` can be omitted. Supply it
+only if your application owns the identifier already; supplied values are
+validated against `^[A-Z0-9]{1,16}$` and rejected if they collide with a
+previously issued coupon.
+
+See `references/atk/requirements.md` for the rule and its source, including an
+unresolved disagreement between ATK's Albanian and English editions of the
+technical requirements.
+
 ### Monetary Units
 
 - Item `price`: integer ten-thousandths of one euro (`EUR 1.00 = 10000`)
@@ -193,6 +205,9 @@ Example sale:
   "total_discount": 0
 }
 ```
+
+`verification_no` is optional and may be added to supply an application-owned
+NUIKF; omit it and the package generates one.
 
 Send `Authorization: Bearer <token>`. Expected result statuses are:
 

@@ -35,43 +35,64 @@ final class CouponBuilder
         $payments   = $this->buildPayments($data->payments);
         $couponType = $this->mapCouponType($data->type);
 
-        $pos = new PosCoupon();
-        $pos->setBusinessId($config->businessId);
-        $pos->setCouponId($couponId);
-        $pos->setBranchId($config->branchId);
+        $pos     = new PosCoupon();
+        $citizen = new CitizenCoupon();
+
+        // The POS and citizen coupons are two encodings of one receipt, and ATK
+        // verifies the citizen QR against the submitted POS payload. Stamping
+        // the shared fields from one place is what keeps them consistent — set
+        // them per-message and a future edit can update one and miss the other.
+        foreach ([$pos, $citizen] as $coupon) {
+            $this->stampShared(
+                $coupon,
+                $config,
+                $snapshot,
+                $couponId,
+                $couponType,
+                $taxGroups,
+                $totalUnits,
+                $totalTaxUnits,
+            );
+        }
+
         $pos->setLocation($config->location);
         $pos->setOperatorId($data->operatorId);
-        $pos->setPosId($config->posId);
         $pos->setApplicationId($config->applicationId);
-        $pos->setVerificationNo($snapshot->verificationNo);
-        $pos->setType($couponType);
-        $pos->setTime($snapshot->time);
         $pos->setItems($items);
         $pos->setPayments($payments);
-        $pos->setTotal($totalUnits);
-        $pos->setTaxGroups($taxGroups);
-        $pos->setTotalTax($totalTaxUnits);
-        $pos->setTotalNoTax($totalUnits - $totalTaxUnits);
         $pos->setTotalDiscount($data->totalDiscount);
 
         if ($data->referenceNo !== null) {
             $pos->setReferenceNo($data->referenceNo);
         }
 
-        $citizen = new CitizenCoupon();
-        $citizen->setBusinessId($config->businessId);
-        $citizen->setCouponId($couponId);
-        $citizen->setBranchId($config->branchId);
-        $citizen->setPosId($config->posId);
-        $citizen->setVerificationNo($snapshot->verificationNo);
-        $citizen->setType($couponType);
-        $citizen->setTime($snapshot->time);
-        $citizen->setTotal($totalUnits);
-        $citizen->setTaxGroups($taxGroups);
-        $citizen->setTotalTax($totalTaxUnits);
-        $citizen->setTotalNoTax($totalUnits - $totalTaxUnits);
-
         return new BuiltCoupon($pos, $citizen);
+    }
+
+    /**
+     * @param TaxGroup[] $taxGroups
+     */
+    private function stampShared(
+        PosCoupon|CitizenCoupon $coupon,
+        FiscalConfig            $config,
+        CouponSnapshot          $snapshot,
+        int                     $couponId,
+        int                     $couponType,
+        array                   $taxGroups,
+        int                     $totalUnits,
+        int                     $totalTaxUnits,
+    ): void {
+        $coupon->setBusinessId($config->businessId);
+        $coupon->setCouponId($couponId);
+        $coupon->setBranchId($config->branchId);
+        $coupon->setPosId($config->posId);
+        $coupon->setVerificationNo($snapshot->verificationNo);
+        $coupon->setType($couponType);
+        $coupon->setTime($snapshot->time);
+        $coupon->setTotal($totalUnits);
+        $coupon->setTaxGroups($taxGroups);
+        $coupon->setTotalTax($totalTaxUnits);
+        $coupon->setTotalNoTax($totalUnits - $totalTaxUnits);
     }
 
     private function validateInput(
@@ -84,11 +105,7 @@ final class CouponBuilder
             throw new FiscalConfigurationException('Coupon ID must be a positive integer.');
         }
 
-        if (!preg_match('/^[A-F0-9]{16}$/', $snapshot->verificationNo)) {
-            throw new FiscalConfigurationException(
-                'Verification number must be exactly 16 uppercase hexadecimal characters.'
-            );
-        }
+        VerificationNo::assertValid($snapshot->verificationNo);
 
         if ($snapshot->time < 1) {
             throw new FiscalConfigurationException('Fiscal time must be a positive Unix timestamp.');

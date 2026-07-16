@@ -25,3 +25,23 @@ copies used for the June 11, 2026 review.
 
 Always download current official copies and compare their revision and hash
 before making implementation or certification decisions.
+
+## Revision Drift
+
+Checked July 16, 2026.
+
+The copy of `Kerkesat-Specifike-Teknike...` currently published by ATK hashes
+`66518E9908086B959BE98A42AD4A9E4CCA7560E34E8A13D7F054224C63C0BC37`, which does
+**not** match the `69AC172E...` copy reviewed on June 11, 2026. ATK has
+republished the document; the June 11 review is against a superseded revision
+and should be redone before certification.
+
+| Document | URL | SHA-256 |
+| --- | --- | --- |
+| Kerkesat Specifike Teknike (SQ, live) | [atk-ks.org](https://www.atk-ks.org/wp-content/uploads/2018/12/Kerkesat-Specifike-Teknike-Dhe-Funksionale-per-Pajisjet-Elektronike-Fiskale-Sistemet-Fiskale-Softueret-Elektronike-Fiskale.pdf) | `66518E9908086B959BE98A42AD4A9E4CCA7560E34E8A13D7F054224C63C0BC37` |
+| Kerkesat Specifike Teknike (EN, live) | [atk-ks.org](https://www.atk-ks.org/wp-content/uploads/2018/12/ENG-Kerkesat-Specifike-Teknike-Dhe-Funksionale-per-Pajisjet-Elektronike-Fiskale-Sistemet-Fiskale-Softueret-Elektronike-Fiskale.pdf) | `B116A4EAFD16A8AB1A455BAD270A2AD7CEFFF3ED3E87E1210CB32FEBEDC53A2A` |
+
+The two language editions do not agree on the NUIKF, and their article
+numbering differs. See the open questions in `requirements.md`. The Albanian
+edition is authoritative; the English edition is useful for locating a rule but
+must not be cited as the requirement.
