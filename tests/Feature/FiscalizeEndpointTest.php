@@ -4,6 +4,7 @@ namespace Jointdots\FiskalizimiKs\Tests\Feature;
 
 use Jointdots\FiskalizimiKs\Engine\AtkClientInterface;
 use Jointdots\FiskalizimiKs\Engine\VerificationNo;
+use Jointdots\FiskalizimiKs\Models\FiscalCoupon;
 use Jointdots\FiskalizimiKs\Tests\TestCase;
 use Mockery;
 
@@ -89,6 +90,27 @@ class FiscalizeEndpointTest extends TestCase
 
         $response->assertStatus(422);
         $response->assertJsonValidationErrors('verification_no');
+    }
+
+    /**
+     * A coupon held for an operator decision is neither accepted, nor rejected,
+     * nor still in progress. Answering 202 would tell the caller to wait for a
+     * resolution that will never arrive on its own.
+     */
+    public function test_post_coupons_reports_an_unresolved_coupon_distinctly(): void
+    {
+        $this->fakeAtk();
+
+        $payload = $this->payload(['idempotency_key' => 'held-for-operator']);
+        $this->withToken('test-token')->postJson('api/fiscal/coupons', $payload);
+
+        FiscalCoupon::query()->where('idempotency_key', 'held-for-operator')
+            ->update(['fiscal_status' => FiscalCoupon::STATUS_UNRESOLVED]);
+
+        $response = $this->withToken('test-token')->postJson('api/fiscal/coupons', $payload);
+
+        $response->assertStatus(409);
+        $response->assertJsonPath('status', 'unresolved');
     }
 
     public function test_post_coupons_requires_a_bearer_token(): void

@@ -5,6 +5,67 @@ Semantic Versioning and the Keep a Changelog format.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-27
+
+Correctness release. No API removals, but see **Upgrading** — consumers that
+match exhaustively on `FiscalStatus` must handle one new case.
+
+### Fixed
+
+- Item names were cut to ATK's 120-byte budget with `substr`, which splits a
+  UTF-8 sequence whenever the boundary falls inside one. Protobuf then refuses
+  the string ("Expect utf-8 encoding") from inside serialization, so the coupon
+  could not be signed and failed identically on every retry — the article had to
+  be renamed before it could be sold. Albanian names reach this readily: `ë` and
+  `ç` are two bytes each. Names are now cut with `mb_strcut`, which respects
+  character boundaries while still honouring a byte budget.
+- A `2xx` response carrying no parseable transaction number was thrown as
+  non-retryable, so the coupon was recorded `rejected` and the operator told ATK
+  had permanently refused it. But `2xx` means ATK received the submission and may
+  already hold the coupon; recording a rejection over a possible acceptance is
+  the one outcome that invites a duplicate. It is now an unknown result: retried
+  first, then escalated to `unresolved` for an operator decision.
+- Every `4xx` except `408`, `425`, `429` was classified non-retryable, so an
+  expired certificate, a stale token, or a mistyped coupon path destroyed valid
+  receipts. `401`, `403`, `404`, `405` and `407` refuse the request before the
+  coupon is judged and are now treated as device faults: retryable, with a
+  message that says so. Verdicts on the payload (`400`, `409`, `422`) stay
+  permanent, because resubmitting the same signed bytes earns the same answer.
+- The ATK request had no `connect_timeout`, so a black-holed connect consumed
+  the entire request budget before the queue learned the device was offline.
+
+### Added
+
+- `FiscalSubmissionException::$unknown` — distinguishes "ATK received this but
+  its outcome cannot be read" from a verdict on the coupon.
+- `FiscalStatus::Unresolved` and `FiscalCoupon::STATUS_UNRESOLVED` — a coupon
+  sent to ATK whose outcome could not be read and did not clear on retry. It is
+  held rather than resolved by guessing. The REST API reports it as `409`.
+- `CouponData::$expectedTotal` and `$expectedTotalTax` — optional. The builder
+  derives both from the items it is handed, so a caller that supplies its own
+  figures has them checked before signing: a mismatch means the payload and the
+  record it came from have drifted, and a coupon that contradicts its own journal
+  entry must not be signed. Tax is carried separately because a caller typically
+  reaches it per stored line while the builder reaches it per payload item, so
+  the two can disagree while the gross still matches.
+- Item names that are already invalid UTF-8 are refused during validation, with
+  a `FiscalConfigurationException` naming the problem, rather than failing
+  opaquely inside protobuf.
+
+### Changed
+
+- `ext-mbstring` is now required.
+
+### Upgrading
+
+- `FiscalStatus` gained `Unresolved`. A consumer that matches exhaustively over
+  it — as the REST controller in this package did — will raise
+  `UnhandledMatchError` until the case is handled. Treat it as "needs an operator
+  decision": neither issued nor refused, and it will not resolve on its own.
+- A submission that previously returned `Rejected` for an unreadable `2xx` or an
+  auth/endpoint `4xx` now returns `Queued`. Consumers that treated `Rejected` as
+  the terminal signal for those cases should follow the journal instead.
+
 ## [0.4.0] - 2026-07-18
 
 Conformance release. No breaking changes.
