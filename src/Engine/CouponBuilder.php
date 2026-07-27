@@ -213,7 +213,7 @@ final class CouponBuilder
             }
         }
 
-        $itemTotal = (int) array_sum(array_map(fn(ItemData $item) => $item->total, $data->items));
+        $itemTotal = $this->itemTotalInFiscalUnits($data->items);
 
         if ($data->totalDiscount > $itemTotal) {
             throw new FiscalConfigurationException('Total discount cannot exceed the coupon total.');
@@ -233,7 +233,7 @@ final class CouponBuilder
     private function validatePayments(CouponData $data): void
     {
         $paymentTotal = (int) array_sum(array_map(fn(PaymentData $p) => $p->amount, $data->payments));
-        $itemTotal    = (int) array_sum(array_map(fn(ItemData $i) => $i->total, $data->items));
+        $itemTotal    = $this->itemTotalInFiscalUnits($data->items);
 
         if ($paymentTotal !== $itemTotal) {
             throw new FiscalConfigurationException(
@@ -250,6 +250,10 @@ final class CouponBuilder
         $totalTaxUnits  = 0;
 
         foreach ($items as $item) {
+            // The wire keeps the item's own units; everything the coupon totals
+            // are built from is the fiscal-unit view of the same amount.
+            $itemUnits = FiskalizimiMoney::itemUnitsToFiscalUnits($item->total);
+
             $ci = new CouponItem();
             $ci->setName(mb_strcut($item->name, 0, self::NAME_MAX_BYTES, 'UTF-8'));
             $ci->setPrice($item->price);
@@ -262,20 +266,39 @@ final class CouponBuilder
 
             $rate     = self::TAX_RATES[$item->taxRate] ?? 0.0;
             $taxUnits = $rate > 0.0
-                ? (int) round($item->total - ($item->total / (1 + $rate)), 0, PHP_ROUND_HALF_UP)
+                ? (int) round($itemUnits - ($itemUnits / (1 + $rate)), 0, PHP_ROUND_HALF_UP)
                 : 0;
 
             $taxGroupTotals[$item->taxRate] ??= ['total_for_tax' => 0, 'total_tax' => 0];
             $taxGroupTotals[$item->taxRate]['total_tax']     += $taxUnits;
-            $taxGroupTotals[$item->taxRate]['total_for_tax'] += $item->total - $taxUnits;
+            $taxGroupTotals[$item->taxRate]['total_for_tax'] += $itemUnits - $taxUnits;
 
-            $totalUnits    += $item->total;
+            $totalUnits    += $itemUnits;
             $totalTaxUnits += $taxUnits;
         }
 
         ksort($taxGroupTotals);
 
         return [$couponItems, $taxGroupTotals, $totalUnits, $totalTaxUnits];
+    }
+
+    /**
+     * The coupon total as the items make it, in fiscal units. Each item is
+     * converted before it is summed, not after, so this is the same figure
+     * processItems() reaches — a coupon can never be rejected for a total the
+     * builder itself would have produced.
+     *
+     * @param ItemData[] $items
+     */
+    private function itemTotalInFiscalUnits(array $items): int
+    {
+        $total = 0;
+
+        foreach ($items as $item) {
+            $total += FiskalizimiMoney::itemUnitsToFiscalUnits($item->total);
+        }
+
+        return $total;
     }
 
     private function buildTaxGroups(array $taxGroupTotals): array

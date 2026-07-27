@@ -126,7 +126,7 @@ $coupon = new CouponData(
             price: 100000, // EUR 10.0000
             unit: 'cope',
             quantity: 1.0,
-            total: 1000,   // EUR 10.00
+            total: 100000, // EUR 10.0000
             taxRate: 'E',
         ),
     ],
@@ -161,10 +161,21 @@ technical requirements.
 
 ### Monetary Units
 
-- Item `price`: integer ten-thousandths of one euro (`EUR 1.00 = 10000`)
-- Item, payment, tax, total, and discount values: integer cents
+- Item `price` and item `total`: integer ten-thousandths of one euro
+  (`EUR 1.00 = 10000`)
+- Coupon total, payments, tax, and discount values: integer cents
   (`EUR 1.00 = 100`)
 - Tax codes: `A` exempt, `C` 0%, `D` 8%, `E` 18%
+
+An item carries its money at the item scale and the coupon carries its own in
+cents, so the same amount appears twice at two scales. The package converts each
+item before summing it, so a caller supplies item figures at the item scale and
+everything else in cents.
+
+ATK's own materials disagree about the item total — the reference POS samples
+put it in cents — but the verification portal reads it at the item scale, and a
+coupon whose item rows are sent in cents is reported there as failing its own
+arithmetic even after ATK accepts it. See `references/atk/requirements.md`.
 
 The package checks that payment totals equal item totals. The caller must
 calculate line totals and discounts according to the current ATK rules.
@@ -193,7 +204,7 @@ Example sale:
       "price": 100000,
       "unit": "cope",
       "quantity": 1,
-      "total": 1000,
+      "total": 100000,
       "tax_rate": "E",
       "type": "TT"
     }

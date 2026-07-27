@@ -8,6 +8,7 @@ use Jointdots\FiskalizimiKs\Dto\CouponType;
 use Jointdots\FiskalizimiKs\Dto\ItemData;
 use Jointdots\FiskalizimiKs\Dto\PaymentData;
 use Jointdots\FiskalizimiKs\Dto\PaymentType;
+use Jointdots\FiskalizimiKs\Engine\FiskalizimiMoney;
 use Jointdots\FiskalizimiKs\Engine\VerificationNo;
 
 class FiscalizeRequest extends FormRequest
@@ -43,7 +44,13 @@ class FiscalizeRequest extends FormRequest
     public function withValidator($validator): void
     {
         $validator->after(function ($validator) {
-            $itemTotal = array_sum(array_column((array) $this->input('items', []), 'total'));
+            // Item totals arrive in item units and the declared total is in
+            // cents, so they are only comparable once converted — item by item,
+            // exactly as the builder converts them.
+            $itemTotal = array_sum(array_map(
+                fn ($total): int => FiskalizimiMoney::itemUnitsToFiscalUnits((int) $total),
+                array_column((array) $this->input('items', []), 'total'),
+            ));
             $paymentTotal = array_sum(array_column((array) $this->input('payments', []), 'amount'));
             $declaredTotal = (int) $this->input('total', 0);
 
