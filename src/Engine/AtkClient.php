@@ -47,7 +47,12 @@ final class AtkClient implements AtkClientInterface
             ? ($decoded['transaction_id'] ?? $decoded['transactionNo'] ?? $decoded['transaction_no'] ?? null)
             : null;
         if (!is_numeric($transactionNo)) {
-            throw new FiscalSubmissionException("ATK response missing transactionNo. Body: {$body}", retryable: false);
+            throw new FiscalSubmissionException(
+                "ATK accepted the request (HTTP {$statusCode}) but its response carried no transaction number, "
+                . "so the coupon's fate at ATK is unknown. Body: {$body}",
+                retryable: true,
+                unknown: true,
+            );
         }
 
         return (int) $transactionNo;

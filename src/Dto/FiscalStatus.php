@@ -10,4 +10,5 @@ enum FiscalStatus: string
     case Submitting = 'submitting';
     case Pending    = 'pending';
     case Rejected   = 'rejected';
+    case Unresolved = 'unresolved';
 }

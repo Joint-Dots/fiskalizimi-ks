@@ -59,6 +59,15 @@ class ResubmitCouponJob implements ShouldQueue
         } catch (FiscalSubmissionException $e) {
             $coupon->update(['fiscal_error' => $e->getMessage()]);
 
+            if ($e->unknown) {
+                // FiskalizimiService already queued this coupon after the first
+                // unknown response, so reaching here means retrying did not
+                // resolve it. Hold it for an operator instead of assuming a
+                // verdict in either direction.
+                $coupon->update(['fiscal_status' => FiscalCoupon::STATUS_UNRESOLVED]);
+                return;
+            }
+
             if (!$e->retryable) {
                 $coupon->update(['fiscal_status' => FiscalCoupon::STATUS_REJECTED]);
                 return;

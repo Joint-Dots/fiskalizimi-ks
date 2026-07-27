@@ -21,6 +21,14 @@ final class CouponBuilder
 {
     private const TAX_RATES = ['A' => 0.0, 'C' => 0.0, 'D' => 0.08, 'E' => 0.18];
 
+    /**
+     * ATK's item-name budget, applied in bytes. The cut uses mb_strcut rather
+     * than substr so it lands on a character boundary: a halved UTF-8 sequence
+     * makes protobuf refuse the whole payload, and the sale then fails
+     * identically on every retry. Albanian names reach this readily.
+     */
+    private const NAME_MAX_BYTES = 120;
+
     public function build(
         CouponSnapshot $snapshot,
         CouponData     $data,
@@ -170,6 +178,13 @@ final class CouponBuilder
             if ($item->quantity <= 0 || $item->price < 0 || $item->total < 0) {
                 throw new FiscalConfigurationException('Item quantity must be positive and monetary values cannot be negative.');
             }
+
+            // Protobuf string fields reject non-UTF-8 bytes from inside
+            // serialization, which would surface as an opaque encoding error
+            // long after the caller could act on it.
+            if (!mb_check_encoding($item->name, 'UTF-8')) {
+                throw new FiscalConfigurationException('Coupon item names must be valid UTF-8.');
+            }
         }
 
         $itemTotal = (int) array_sum(array_map(fn(ItemData $item) => $item->total, $data->items));
@@ -210,7 +225,7 @@ final class CouponBuilder
 
         foreach ($items as $item) {
             $ci = new CouponItem();
-            $ci->setName(substr($item->name, 0, 120));
+            $ci->setName(mb_strcut($item->name, 0, self::NAME_MAX_BYTES, 'UTF-8'));
             $ci->setPrice($item->price);
             $ci->setUnit($item->unit);
             $ci->setQuantity($item->quantity);

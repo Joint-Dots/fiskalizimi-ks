@@ -62,6 +62,48 @@ class AtkClientTest extends TestCase
         $this->assertSame(12345, $transactionNo);
     }
 
+    /**
+     * A 2xx says ATK received the submission; an unparseable body says only that
+     * we cannot read the outcome. ATK may already hold the coupon, so this is an
+     * unknown result, not a verdict — recording a permanent rejection over a
+     * possible acceptance is what invites a duplicate. It stays retryable because
+     * the usual cause is an intercepting proxy or captive portal answering 200,
+     * which resolves on its own.
+     */
+    public function test_success_without_a_transaction_number_is_an_unknown_result(): void
+    {
+        $client = $this->clientWithResponse(new Response(
+            200,
+            ['Content-Type' => 'text/html'],
+            '<html><body>Sign in to continue</body></html>'
+        ));
+
+        try {
+            $client->submit(new SignedPayload('details', 'signature'), $this->config());
+            $this->fail('Expected the ATK client to report an unknown result.');
+        } catch (FiscalSubmissionException $e) {
+            $this->assertTrue($e->unknown, 'An unreadable 2xx must be flagged unknown.');
+            $this->assertTrue($e->retryable, 'An unknown result must stay retryable.');
+        }
+    }
+
+    /** A genuine rejection is a verdict, not an unknown result. */
+    public function test_a_rejected_submission_is_not_flagged_unknown(): void
+    {
+        $client = $this->clientWithResponse(new Response(
+            400,
+            ['Content-Type' => 'application/json'],
+            '{"message":"invalid coupon"}'
+        ));
+
+        try {
+            $client->submit(new SignedPayload('details', 'signature'), $this->config());
+            $this->fail('Expected the ATK client to reject HTTP 400.');
+        } catch (FiscalSubmissionException $e) {
+            $this->assertFalse($e->unknown);
+        }
+    }
+
     private function clientWithResponse(Response $response): AtkClient
     {
         $handler = HandlerStack::create(new MockHandler([$response]));

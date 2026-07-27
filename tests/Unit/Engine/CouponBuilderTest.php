@@ -323,6 +323,73 @@ class CouponBuilderTest extends TestCase
         $this->builder->build($this->snapshot, $data, $this->config, couponId: 12);
     }
 
+    /**
+     * ATK's item-name budget is applied in bytes, but a byte-wise cut can split a
+     * UTF-8 sequence in half. Protobuf then refuses the string ("Expect utf-8
+     * encoding") from inside serialization, which reaches the caller as a sale
+     * that cannot be fiscalized and fails identically on every retry. Albanian
+     * names make this ordinary: "ë" and "ç" are two bytes each.
+     */
+    public function test_a_long_multibyte_item_name_still_serializes(): void
+    {
+        $name = str_repeat('a', 119) . "\u{00eb}" . 'fund';
+
+        $built = $this->builder->build(
+            $this->snapshot,
+            $this->couponDataWithItemName($name),
+            $this->config,
+            couponId: 99,
+        );
+
+        $encoded = $built->posCoupon->getItems()[0]->getName();
+
+        $this->assertTrue(mb_check_encoding($encoded, 'UTF-8'), 'Item name must stay valid UTF-8.');
+        $this->assertLessThanOrEqual(120, strlen($encoded), 'Item name must stay within the 120-byte budget.');
+        $this->assertSame(119, strlen($encoded), 'The split character must be dropped whole, not halved.');
+        $built->posCoupon->serializeToString();
+    }
+
+    public function test_a_short_multibyte_item_name_is_not_truncated(): void
+    {
+        $name = "Kafe me qum\u{00eb}sht dhe \u{00e7}okollat\u{00eb}";
+
+        $built = $this->builder->build(
+            $this->snapshot,
+            $this->couponDataWithItemName($name),
+            $this->config,
+            couponId: 99,
+        );
+
+        $this->assertSame($name, $built->posCoupon->getItems()[0]->getName());
+    }
+
+    /**
+     * A name that is already invalid UTF-8 cannot be rescued by cutting it, so it
+     * must be refused with a clear configuration error rather than reaching
+     * protobuf and failing there.
+     */
+    public function test_an_invalid_utf8_item_name_is_rejected(): void
+    {
+        $this->expectException(FiscalConfigurationException::class);
+        $this->expectExceptionMessage('valid UTF-8');
+
+        $this->builder->build(
+            $this->snapshot,
+            $this->couponDataWithItemName("Produkt \xFF\xFE"),
+            $this->config,
+            couponId: 99,
+        );
+    }
+
+    private function couponDataWithItemName(string $name): CouponData
+    {
+        return new CouponData(
+            items:      [new ItemData($name, 10000, 'cope', 1.0, 1000, 'D')],
+            payments:   [new PaymentData(PaymentType::Cash, 1000)],
+            operatorId: 'John',
+        );
+    }
+
     private function validCouponData(): CouponData
     {
         return new CouponData(
