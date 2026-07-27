@@ -7,6 +7,7 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
 use Jointdots\FiskalizimiKs\Dto\FiscalConfig;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Jointdots\FiskalizimiKs\Engine\AtkClient;
 use Jointdots\FiskalizimiKs\Engine\SignedPayload;
 use Jointdots\FiskalizimiKs\Exceptions\FiscalSubmissionException;
@@ -102,6 +103,60 @@ class AtkClientTest extends TestCase
         } catch (FiscalSubmissionException $e) {
             $this->assertFalse($e->unknown);
         }
+    }
+
+    /**
+     * An expired certificate, a stale token, or a mistyped coupon path makes ATK
+     * refuse the request without ever judging the coupon. Treating that as a
+     * permanent rejection destroys a valid receipt over a device fault the
+     * operator can fix, so these stay retryable and delivery resumes once the
+     * device is put right.
+     */
+    #[DataProvider('deviceFaultStatuses')]
+    public function test_a_device_fault_does_not_reject_the_coupon(int $status): void
+    {
+        $client = $this->clientWithResponse(new Response($status, [], '{"message":"denied"}'));
+
+        try {
+            $client->submit(new SignedPayload('details', 'signature'), $this->config());
+            $this->fail("Expected HTTP {$status} to raise a submission exception.");
+        } catch (FiscalSubmissionException $e) {
+            $this->assertTrue($e->retryable, "HTTP {$status} is a device fault, not a coupon verdict.");
+            $this->assertFalse($e->unknown, "HTTP {$status} never reached a verdict, but it is not an unknown result.");
+        }
+    }
+
+    public static function deviceFaultStatuses(): array
+    {
+        return [
+            'unauthorized'    => [401],
+            'forbidden'       => [403],
+            'not found'       => [404],
+            'method mismatch' => [405],
+            'proxy auth'      => [407],
+        ];
+    }
+
+    /**
+     * A verdict on the payload itself is permanent: resubmitting the same signed
+     * bytes earns the same answer.
+     */
+    #[DataProvider('verdictStatuses')]
+    public function test_a_payload_verdict_is_permanent(int $status): void
+    {
+        $client = $this->clientWithResponse(new Response($status, [], '{"message":"invalid coupon"}'));
+
+        try {
+            $client->submit(new SignedPayload('details', 'signature'), $this->config());
+            $this->fail("Expected HTTP {$status} to raise a submission exception.");
+        } catch (FiscalSubmissionException $e) {
+            $this->assertFalse($e->retryable, "HTTP {$status} is a verdict on the payload.");
+        }
+    }
+
+    public static function verdictStatuses(): array
+    {
+        return ['bad request' => [400], 'conflict' => [409], 'unprocessable' => [422]];
     }
 
     private function clientWithResponse(Response $response): AtkClient
