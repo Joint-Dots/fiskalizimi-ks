@@ -65,9 +65,9 @@ class CouponBuilderTest extends TestCase
     {
         $data = new CouponData(
             items: [
-                new ItemData('Produkt A', 10000, 'cope', 1.0, 1000, 'D'),
-                new ItemData('Produkt B', 20000, 'cope', 1.0, 2000, 'E'),
-                new ItemData('Produkt C', 5000, 'cope', 1.0, 500, 'D'),
+                new ItemData('Produkt A', 10000, 'cope', 1.0, 100000, 'D'),
+                new ItemData('Produkt B', 20000, 'cope', 1.0, 200000, 'E'),
+                new ItemData('Produkt C', 5000, 'cope', 1.0, 50000, 'D'),
             ],
             payments:   [new PaymentData(PaymentType::Cash, 3500)],
             operatorId: 'Cashier',
@@ -133,7 +133,7 @@ class CouponBuilderTest extends TestCase
     public function test_payments_not_summing_to_total_throws(): void
     {
         $data = new CouponData(
-            items:       [new ItemData('A', 1000, 'cope', 1.0, 500, 'D')],
+            items:       [new ItemData('A', 1000, 'cope', 1.0, 50000, 'D')],
             payments:    [new PaymentData(PaymentType::Cash, 999)],  // 999 ≠ 500
             operatorId:  'John',
         );
@@ -147,7 +147,7 @@ class CouponBuilderTest extends TestCase
     public function test_multi_tender_payments_accepted(): void
     {
         $data = new CouponData(
-            items: [new ItemData('A', 10000, 'cope', 1.0, 1000, 'D')],
+            items: [new ItemData('A', 10000, 'cope', 1.0, 100000, 'D')],
             payments: [
                 new PaymentData(PaymentType::Cash, 600),
                 new PaymentData(PaymentType::CreditCard, 400),
@@ -163,7 +163,7 @@ class CouponBuilderTest extends TestCase
     public function test_return_coupon_sets_reference_no(): void
     {
         $data = new CouponData(
-            items:       [new ItemData('A', 10000, 'cope', 1.0, 1000, 'D')],
+            items:       [new ItemData('A', 10000, 'cope', 1.0, 100000, 'D')],
             payments:    [new PaymentData(PaymentType::Cash, 1000)],
             operatorId:  'John',
             type:        CouponType::Return,
@@ -181,7 +181,7 @@ class CouponBuilderTest extends TestCase
     public function test_cancel_coupon_uses_atk_cancel_wire_value_and_reference(): void
     {
         $data = new CouponData(
-            items:       [new ItemData('A', 10000, 'cope', 1.0, 1000, 'D')],
+            items:       [new ItemData('A', 10000, 'cope', 1.0, 100000, 'D')],
             payments:    [new PaymentData(PaymentType::Cash, 1000)],
             operatorId:  'John',
             type:        CouponType::Cancel,
@@ -214,7 +214,7 @@ class CouponBuilderTest extends TestCase
     public function test_return_coupon_without_reference_no_throws(): void
     {
         $data = new CouponData(
-            items:       [new ItemData('A', 10000, 'cope', 1.0, 1000, 'D')],
+            items:       [new ItemData('A', 10000, 'cope', 1.0, 100000, 'D')],
             payments:    [new PaymentData(PaymentType::Cash, 1000)],
             operatorId:  'John',
             type:        CouponType::Return,
@@ -229,7 +229,7 @@ class CouponBuilderTest extends TestCase
     public function test_unknown_tax_code_throws(): void
     {
         $data = new CouponData(
-            items:      [new ItemData('A', 10000, 'cope', 1.0, 1000, 'X')],
+            items:      [new ItemData('A', 10000, 'cope', 1.0, 100000, 'X')],
             payments:   [new PaymentData(PaymentType::Cash, 1000)],
             operatorId: 'John',
         );
@@ -243,7 +243,7 @@ class CouponBuilderTest extends TestCase
     public function test_sale_coupon_with_reference_no_throws(): void
     {
         $data = new CouponData(
-            items:       [new ItemData('A', 10000, 'cope', 1.0, 1000, 'D')],
+            items:       [new ItemData('A', 10000, 'cope', 1.0, 100000, 'D')],
             payments:    [new PaymentData(PaymentType::Cash, 1000)],
             operatorId:  'John',
             referenceNo: 77,
@@ -273,13 +273,67 @@ class CouponBuilderTest extends TestCase
         $this->builder->build($this->snapshot, $this->validCouponData(), $config, couponId: 10);
     }
 
+    /**
+     * An item's money is carried in item units and a coupon's in cents, so the
+     * same amount appears at two scales in one payload. The item rows must reach
+     * the wire untouched while every coupon-level figure is the converted view —
+     * which is what ATK's verification portal reconciles a coupon against.
+     */
+    public function test_item_rows_keep_item_units_while_coupon_totals_are_cents(): void
+    {
+        $data = new CouponData(
+            items: [
+                new ItemData('A', 10000, 'cope', 1.0, 100000, 'D'),  // EUR 10.00
+                new ItemData('B', 5000, 'cope', 1.0, 50000, 'E'),    // EUR  5.00
+            ],
+            payments:   [new PaymentData(PaymentType::Cash, 1500)],
+            operatorId: 'John',
+        );
+
+        $built = $this->builder->build($this->snapshot, $data, $this->config, couponId: 21);
+        $items = iterator_to_array($built->posCoupon->getItems());
+
+        $this->assertSame(100000, $items[0]->getTotal());
+        $this->assertSame(50000, $items[1]->getTotal());
+
+        $this->assertSame(1500, $built->posCoupon->getTotal());
+        $this->assertSame(1500, $built->citizenCoupon->getTotal());
+
+        $taxTotal = 0;
+
+        foreach ($built->posCoupon->getTaxGroups() as $group) {
+            $taxTotal += $group->getTotalForTax() + $group->getTotalTax();
+        }
+
+        $this->assertSame(1500, $taxTotal);
+    }
+
+    /**
+     * The caller's own record is kept in cents, so it is checked against the
+     * converted total. An expectation stated in item units must not pass.
+     */
+    public function test_callers_expected_total_is_compared_in_cents(): void
+    {
+        $data = new CouponData(
+            items:         [new ItemData('A', 10000, 'cope', 1.0, 100000, 'D')],
+            payments:      [new PaymentData(PaymentType::Cash, 1000)],
+            operatorId:    'John',
+            expectedTotal: 100000,
+        );
+
+        $this->expectException(FiscalConfigurationException::class);
+        $this->expectExceptionMessageMatches('/does not match the caller\'s record/i');
+
+        $this->builder->build($this->snapshot, $data, $this->config, couponId: 22);
+    }
+
     public function test_tax_groups_aggregated_by_rate(): void
     {
         $data = new CouponData(
             items: [
-                new ItemData('A', 10000, 'cope', 1.0, 1000, 'D'),
-                new ItemData('B', 20000, 'cope', 1.0, 2000, 'D'),
-                new ItemData('C', 10000, 'cope', 1.0, 1000, 'E'),
+                new ItemData('A', 10000, 'cope', 1.0, 100000, 'D'),
+                new ItemData('B', 20000, 'cope', 1.0, 200000, 'D'),
+                new ItemData('C', 10000, 'cope', 1.0, 100000, 'E'),
             ],
             payments: [new PaymentData(PaymentType::Cash, 4000)],
             operatorId: 'John',
@@ -297,7 +351,7 @@ class CouponBuilderTest extends TestCase
     public function test_total_discount_is_added_to_pos_coupon(): void
     {
         $data = new CouponData(
-            items:         [new ItemData('A', 10000, 'cope', 1.0, 900, 'D')],
+            items:         [new ItemData('A', 10000, 'cope', 1.0, 90000, 'D')],
             payments:      [new PaymentData(PaymentType::Cash, 900)],
             operatorId:    'John',
             totalDiscount: 100,
@@ -314,7 +368,7 @@ class CouponBuilderTest extends TestCase
         $this->expectExceptionMessage('Total discount cannot exceed the coupon total.');
 
         $data = new CouponData(
-            items:         [new ItemData('A', 10000, 'cope', 1.0, 900, 'D')],
+            items:         [new ItemData('A', 10000, 'cope', 1.0, 90000, 'D')],
             payments:      [new PaymentData(PaymentType::Cash, 900)],
             operatorId:    'John',
             totalDiscount: 901,
@@ -384,7 +438,7 @@ class CouponBuilderTest extends TestCase
     private function couponDataWithItemName(string $name): CouponData
     {
         return new CouponData(
-            items:      [new ItemData($name, 10000, 'cope', 1.0, 1000, 'D')],
+            items:      [new ItemData($name, 10000, 'cope', 1.0, 100000, 'D')],
             payments:   [new PaymentData(PaymentType::Cash, 1000)],
             operatorId: 'John',
         );
@@ -447,7 +501,7 @@ class CouponBuilderTest extends TestCase
     private function couponDataWithExpectations(?int $expectedTotal, ?int $expectedTotalTax): CouponData
     {
         return new CouponData(
-            items:            [new ItemData('Produkt A', 10000, 'cope', 1.0, 1000, 'D')],
+            items:            [new ItemData('Produkt A', 10000, 'cope', 1.0, 100000, 'D')],
             payments:         [new PaymentData(PaymentType::Cash, 1000)],
             operatorId:       'John',
             expectedTotal:    $expectedTotal,
@@ -458,7 +512,7 @@ class CouponBuilderTest extends TestCase
     private function validCouponData(): CouponData
     {
         return new CouponData(
-            items:      [new ItemData('Produkt A', 10000, 'cope', 1.0, 1000, 'D')],
+            items:      [new ItemData('Produkt A', 10000, 'cope', 1.0, 100000, 'D')],
             payments:   [new PaymentData(PaymentType::Cash, 1000)],
             operatorId: 'John',
         );
