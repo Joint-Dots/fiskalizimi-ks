@@ -96,7 +96,7 @@ class SignerTest extends TestCase
     {
         $snapshot = CouponSnapshot::generate(existsChecker: fn() => false);
         $data     = new CouponData(
-            items:      [new ItemData('A', 10000, 'cope', 1.0, 1000, 'D')],
+            items:      [new ItemData('A', 10000, 'cope', 1.0, 100000, 'D')],
             payments:   [new PaymentData(PaymentType::Cash, 1000)],
             operatorId: 'Test',
         );

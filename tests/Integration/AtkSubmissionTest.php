@@ -52,7 +52,7 @@ class AtkSubmissionTest extends TestCase
 
         $data = new CouponData(
             items: [
-                new ItemData('Test Product', 10000, 'cope', 1.0, 1000, 'D'),
+                new ItemData('Test Product', 10000, 'cope', 1.0, 100000, 'D'),
             ],
             payments: [
                 new PaymentData(PaymentType::Cash, 1000),

@@ -146,7 +146,7 @@ class FiskalizimiServiceTest extends TestCase
         ?string $verificationNo = '0000000000000001',
     ): CouponData {
         return new CouponData(
-            items:          [new ItemData('Produkt A', 10000, 'cope', 1.0, 1000, 'D')],
+            items:          [new ItemData('Produkt A', 10000, 'cope', 1.0, 100000, 'D')],
             payments:       [new PaymentData(PaymentType::Cash, 1000)],
             operatorId:     'Cashier',
             idempotencyKey: $idempotencyKey,
