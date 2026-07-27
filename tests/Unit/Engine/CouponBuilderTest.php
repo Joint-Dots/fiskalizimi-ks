@@ -390,6 +390,71 @@ class CouponBuilderTest extends TestCase
         );
     }
 
+    /**
+     * The payload and the caller's record must be two views of one receipt. The
+     * builder derives the totals from the items, so if the caller's own figures
+     * disagree the two have drifted and the coupon must not be signed: it would
+     * contradict the journal entry it was issued from.
+     */
+    public function test_a_total_that_contradicts_the_callers_record_is_refused(): void
+    {
+        $this->expectException(FiscalConfigurationException::class);
+        $this->expectExceptionMessage('does not match');
+
+        $this->builder->build(
+            $this->snapshot,
+            $this->couponDataWithExpectations(expectedTotal: 999, expectedTotalTax: null),
+            $this->config,
+            couponId: 99,
+        );
+    }
+
+    public function test_a_tax_total_that_contradicts_the_callers_record_is_refused(): void
+    {
+        $this->expectException(FiscalConfigurationException::class);
+        $this->expectExceptionMessage('tax');
+
+        $this->builder->build(
+            $this->snapshot,
+            $this->couponDataWithExpectations(expectedTotal: null, expectedTotalTax: 999),
+            $this->config,
+            couponId: 99,
+        );
+    }
+
+    public function test_matching_expectations_build_normally(): void
+    {
+        // 1000 gross at code D (8%) -> 74 tax, checked against the builder's own sums.
+        $built = $this->builder->build(
+            $this->snapshot,
+            $this->couponDataWithExpectations(expectedTotal: 1000, expectedTotalTax: 74),
+            $this->config,
+            couponId: 99,
+        );
+
+        $this->assertSame(1000, $built->posCoupon->getTotal());
+        $this->assertSame(74, $built->posCoupon->getTotalTax());
+    }
+
+    /** A caller with no separate record of its own is not forced to invent one. */
+    public function test_expectations_are_optional(): void
+    {
+        $built = $this->builder->build($this->snapshot, $this->validCouponData(), $this->config, couponId: 99);
+
+        $this->assertSame(1000, $built->posCoupon->getTotal());
+    }
+
+    private function couponDataWithExpectations(?int $expectedTotal, ?int $expectedTotalTax): CouponData
+    {
+        return new CouponData(
+            items:            [new ItemData('Produkt A', 10000, 'cope', 1.0, 1000, 'D')],
+            payments:         [new PaymentData(PaymentType::Cash, 1000)],
+            operatorId:       'John',
+            expectedTotal:    $expectedTotal,
+            expectedTotalTax: $expectedTotalTax,
+        );
+    }
+
     private function validCouponData(): CouponData
     {
         return new CouponData(
