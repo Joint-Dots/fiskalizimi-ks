@@ -10,6 +10,17 @@ use Jointdots\FiskalizimiKs\Exceptions\FiscalSubmissionException;
 
 final class AtkClient implements AtkClientInterface
 {
+    /** Transport-level congestion: the same bytes will be accepted later. */
+    private const TRANSIENT_STATUSES = [408, 425, 429];
+
+    /**
+     * The request was refused before the coupon was ever judged — an expired
+     * certificate, a stale token, a wrong coupon path. Rejecting the coupon over
+     * one of these would destroy a valid receipt over a fault the operator can
+     * fix, so they stay retryable and delivery resumes once the device is right.
+     */
+    private const DEVICE_FAULT_STATUSES = [401, 403, 404, 405, 407];
+
     private ClientInterface $http;
 
     public function __construct(?ClientInterface $http = null)
@@ -39,8 +50,19 @@ final class AtkClient implements AtkClientInterface
             $message = is_array($decoded)
                 ? ($decoded['message'] ?? $decoded['error'] ?? $body)
                 : $body;
-            $retryable = $statusCode >= 500 || in_array($statusCode, [408, 425, 429], true);
-            throw new FiscalSubmissionException("ATK rejected submission (HTTP {$statusCode}): {$message}", retryable: $retryable);
+
+            $isDeviceFault = in_array($statusCode, self::DEVICE_FAULT_STATUSES, true);
+            $retryable = $statusCode >= 500
+                || in_array($statusCode, self::TRANSIENT_STATUSES, true)
+                || $isDeviceFault;
+
+            throw new FiscalSubmissionException(
+                $isDeviceFault
+                    ? "ATK refused the request (HTTP {$statusCode}): {$message}. This is a device or "
+                      . 'configuration fault, not a verdict on the coupon.'
+                    : "ATK rejected submission (HTTP {$statusCode}): {$message}",
+                retryable: $retryable,
+            );
         }
 
         $transactionNo = is_array($decoded)
