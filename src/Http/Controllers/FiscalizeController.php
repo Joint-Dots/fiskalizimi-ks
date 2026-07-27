@@ -77,6 +77,10 @@ class FiscalizeController extends Controller
             FiscalStatus::Pending,
             FiscalStatus::Submitting => 202,
             FiscalStatus::Rejected => 422,
+            // Sent, but ATK's answer could not be read and retrying did not clear
+            // it. Neither accepted nor refused nor progressing: 202 would tell the
+            // caller to wait for a resolution that will never arrive on its own.
+            FiscalStatus::Unresolved => 409,
             FiscalStatus::Failed => 500,
         };
     }

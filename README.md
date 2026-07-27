@@ -27,6 +27,8 @@ The package currently provides:
 - A database-backed fiscal journal
 - Idempotency keys
 - Automatic retry for retryable failures through a fixed 48-hour window
+- Unknown ATK results held for an operator decision rather than guessed
+- Optional verification that the payload agrees with the caller's own record
 - An optional bearer-token REST API
 
 The host application remains responsible for:
@@ -51,6 +53,7 @@ before production use.
 - PHP 8.2 or later
 - Laravel 11, 12, or 13
 - OpenSSL PHP extension
+- Mbstring PHP extension
 - A database supported by Laravel
 - A queue worker when automatic offline retry is enabled
 - An ATK-issued application ID and installation identifiers
@@ -213,6 +216,8 @@ Send `Authorization: Bearer <token>`. Expected result statuses are:
 
 - `200`: fiscalized by ATK
 - `202`: queued or still submitting
+- `409`: held for an operator decision — sent to ATK, but its answer could not
+  be read and retrying did not clear it. Will not resolve on its own.
 - `422`: permanently rejected by ATK
 - `500`: local build, configuration, or signing failure
 
@@ -221,9 +226,21 @@ logged; coupon lines, signatures, and QR payloads are excluded.
 
 ## Offline Operation
 
-The signed QR and journal data are created before the ATK request. Retryable
-transport failures and HTTP `408`, `425`, `429`, or `5xx` responses queue the
-same signed payload for resubmission.
+The signed QR and journal data are created before the ATK request. The same
+signed payload is queued for resubmission on retryable transport failures and on
+HTTP `408`, `425`, `429`, or `5xx`.
+
+Responses that refuse the request without judging the coupon — `401`, `403`,
+`404`, `405`, `407` — are treated as device or configuration faults rather than
+verdicts, and also queue. An expired certificate or a mistyped coupon path must
+not destroy a valid receipt; delivery resumes once the device is corrected.
+
+A `2xx` whose body carries no transaction number is an **unknown result**: ATK
+received the submission and may already hold the coupon. It is never recorded as
+a rejection. The coupon is retried — an intercepting proxy or captive portal
+answering `200` clears on its own — and only if retrying does not resolve it does
+the coupon move to `unresolved`, where it waits for an operator decision instead
+of the package guessing an outcome in either direction.
 
 Run a queue worker:
 
