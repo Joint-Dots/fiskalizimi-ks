@@ -10,6 +10,9 @@ use Jointdots\FiskalizimiKs\Exceptions\FiscalSubmissionException;
 
 final class AtkClient implements AtkClientInterface
 {
+    /** Cap on establishing the connection, as opposed to the whole exchange. */
+    private const CONNECT_TIMEOUT_SECONDS = 5;
+
     /** Transport-level congestion: the same bytes will be accepted later. */
     private const TRANSIENT_STATUSES = [408, 425, 429];
 
@@ -34,9 +37,12 @@ final class AtkClient implements AtkClientInterface
 
         try {
             $response = $this->http->request('POST', $endpoint, [
-                'json'        => $payload->toRequestPayload(),
-                'timeout'     => $config->atkTimeout,
-                'http_errors' => false,
+                'json'            => $payload->toRequestPayload(),
+                'timeout'         => $config->atkTimeout,
+                // Without its own budget, a black-holed connect consumes the whole
+                // request timeout before the queue learns the device is offline.
+                'connect_timeout' => min(self::CONNECT_TIMEOUT_SECONDS, $config->atkTimeout),
+                'http_errors'     => false,
             ]);
         } catch (GuzzleException $e) {
             throw new FiscalSubmissionException('ATK request failed: ' . $e->getMessage(), retryable: true, previous: $e);

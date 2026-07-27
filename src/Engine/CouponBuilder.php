@@ -39,6 +39,7 @@ final class CouponBuilder
         $this->validatePayments($data);
 
         [$items, $taxGroupTotals, $totalUnits, $totalTaxUnits] = $this->processItems($data->items);
+        $this->assertAgreesWithCallersRecord($data, $totalUnits, $totalTaxUnits);
         $taxGroups  = $this->buildTaxGroups($taxGroupTotals);
         $payments   = $this->buildPayments($data->payments);
         $couponType = $this->mapCouponType($data->type);
@@ -101,6 +102,31 @@ final class CouponBuilder
         $coupon->setTaxGroups($taxGroups);
         $coupon->setTotalTax($totalTaxUnits);
         $coupon->setTotalNoTax($totalUnits - $totalTaxUnits);
+    }
+
+    /**
+     * The signed payload must agree with the record the caller issued it from.
+     * The builder derives the totals from the items, so a caller whose own
+     * figures differ has drifted from its journal — and a coupon that
+     * contradicts its own journal entry must not be signed.
+     *
+     * Tax is worth checking separately from the gross: the two are computed by
+     * different routes (the caller per stored line, the builder per item here),
+     * so they can disagree while the gross still matches.
+     */
+    private function assertAgreesWithCallersRecord(CouponData $data, int $totalUnits, int $totalTaxUnits): void
+    {
+        if ($data->expectedTotal !== null && $data->expectedTotal !== $totalUnits) {
+            throw new FiscalConfigurationException(
+                "Coupon total ({$totalUnits}) does not match the caller's record ({$data->expectedTotal})."
+            );
+        }
+
+        if ($data->expectedTotalTax !== null && $data->expectedTotalTax !== $totalTaxUnits) {
+            throw new FiscalConfigurationException(
+                "Coupon tax total ({$totalTaxUnits}) does not match the caller's record ({$data->expectedTotalTax})."
+            );
+        }
     }
 
     private function validateInput(
