@@ -5,6 +5,39 @@ Semantic Versioning and the Keep a Changelog format.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-27
+
+Contract change. `ItemData::$total` — and `items.*.total` on the REST endpoint —
+now carries item units (`EUR 1.00 = 10000`), the same scale as `ItemData::$price`,
+instead of cents. Callers must scale their line totals by 100; nothing else about
+a coupon changes.
+
+### Changed
+
+- An item's total was sent in cents while its price was sent in ten-thousandths
+  of a euro. ATK's verification portal reads both at the item scale, so every
+  line rendered a hundredth of its true amount and the portal reported the coupon
+  as failing its own arithmetic (`Ka mospërputhje në kalkulim`) — on a coupon ATK
+  had otherwise accepted. Item money is now carried in item units throughout.
+  ATK's materials disagree on this point: the reference POS samples put the item
+  total in cents, and the `pos-golang` readme states both scales in adjacent
+  paragraphs. A sandbox coupon submitted on 2026-07-27 reconciled on the portal
+  only in item units.
+- Coupon-level figures are unchanged and still in cents. `Total`, `TotalTax`,
+  `TotalNoTax`, the tax groups, payments, `TotalDiscount`, and both
+  `expectedTotal`/`expectedTotalTax` keep their meaning, so a signed coupon's
+  totals — and the citizen coupon behind the QR — are byte-identical to 0.5.0 for
+  the same sale. Each item is converted before it is summed, so the builder's
+  own totals cannot disagree with the ones it validates against.
+
+### Upgrading
+
+Multiply the value passed as `ItemData::$total` (or posted as `items.*.total`) by
+100. A caller that keeps line totals in cents changes `total: $grossMinor` to
+`total: $grossMinor * 100`. Leave payments, `total`, and `total_discount` alone.
+A caller that does not update is rejected before signing: the payment total will
+no longer match the item total.
+
 ## [0.5.0] - 2026-07-27
 
 Correctness release. No API removals, but see **Upgrading** — consumers that

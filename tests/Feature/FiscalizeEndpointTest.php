@@ -136,7 +136,7 @@ class FiscalizeEndpointTest extends TestCase
                 'price'    => 10000,
                 'unit'     => 'cope',
                 'quantity' => 1.0,
-                'total'    => 1000,
+                'total'    => 100000, // item units: EUR 10.0000
                 'tax_rate' => 'D',
             ]],
             'payments'        => [['type' => 'cash', 'amount' => 1000]],

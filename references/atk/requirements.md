@@ -52,6 +52,38 @@ either against `^[A-Z0-9]{1,16}$`.
   certification: if the structured form is current, the NUIKF becomes derived
   configuration rather than a generated value, and this package is wrong.
 
+## Monetary Scales
+
+Two scales coexist in one coupon: item money in ten-thousandths of a euro
+(`EUR 1.00 = 10000`) and coupon money in cents (`EUR 1.00 = 100`).
+
+The item **price** is settled: the technical specification puts unit prices at
+four decimal places, and the reference POS samples send `15000` for €1.50.
+
+The item **total** is not settled in ATK's documentation, and this package sends
+it at the item scale.
+
+### Open questions
+
+- **ATK's materials contradict each other on the item total.** The `pos-golang`
+  readme says in one place "Provide all item prices as integers, where the final
+  four digits represent ten-thousandths of a euro (€0.0001)" and in another
+  "Provide all total values as integers, where the final two digits represent
+  cents (€0.01)", and its field list describes both `Price` and `Total` as "the
+  value is in cents". The `pos-csharp` sample sends `Price 15000` with
+  `Total 450` — price at the item scale, total in cents. The `pos-php` sample
+  sends `Price 150`, which is wrong under either reading.
+
+  ATK's verification portal, however, renders an item's `Total` at the item
+  scale and reconciles the sum of item totals against the coupon total. A coupon
+  whose items are sent in cents is accepted and published, and its coupon-level
+  figures and QR verify — but every line renders a hundredth of its amount and
+  the portal reports `Ka mospërputhje në kalkulim`. The same coupon sent at the
+  item scale renders and reconciles correctly (sandbox, 2026-07-27).
+
+  Confirm with ATK before certification. Coupon-level fields are in cents under
+  either reading, so only the item rows are at stake.
+
 ## Core Operational Expectations
 
 - Every fiscal transaction must have a unique identifier and must not be
