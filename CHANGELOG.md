@@ -5,6 +5,20 @@ Semantic Versioning and the Keep a Changelog format.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-28
+
+### Fixed
+
+- A coupon discounted by more than half was rejected with "Total discount cannot
+  exceed the coupon total." An item's `Total` is what is left *after* its
+  markdown, so the coupon total and the discount are disjoint amounts whose sum
+  is the pre-discount subtotal. Comparing one against the other was not a loose
+  bound but a meaningless one, and it failed exactly the coupons where the money
+  taken off is larger than the money left — every markdown over 50%. The bound is
+  gone; `TotalDiscount` must still be non-negative.
+
+> Note: the entry below is labelled 0.6.0 but was published as tag `0.7.0`.
+
 ## [0.6.0] - 2026-07-27
 
 Contract change. `ItemData::$total` — and `items.*.total` on the REST endpoint —

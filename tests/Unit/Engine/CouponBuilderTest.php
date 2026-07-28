@@ -362,19 +362,41 @@ class CouponBuilderTest extends TestCase
         $this->assertSame(100, $built->posCoupon->getTotalDiscount());
     }
 
-    public function test_total_discount_cannot_exceed_coupon_total(): void
+    /**
+     * An item's Total is what is left after its markdown, so the coupon total and
+     * the discount are disjoint amounts: the pre-discount subtotal is their sum,
+     * and a discount can never exceed it. Capping the discount at the total was
+     * therefore not a weak bound but a wrong one — it rejected every coupon marked
+     * down by more than half, where the money taken off exceeds the money left.
+     */
+    public function test_a_coupon_discounted_by_more_than_half_is_accepted(): void
+    {
+        $data = new CouponData(
+            items:         [new ItemData('A', 10000, 'cope', 1.0, 4000, 'D')],
+            payments:      [new PaymentData(PaymentType::Cash, 40)],
+            operatorId:    'John',
+            totalDiscount: 60,
+        );
+
+        $built = $this->builder->build($this->snapshot, $data, $this->config, couponId: 12);
+
+        $this->assertSame(40, $built->posCoupon->getTotal());
+        $this->assertSame(60, $built->posCoupon->getTotalDiscount());
+    }
+
+    public function test_total_discount_cannot_be_negative(): void
     {
         $this->expectException(FiscalConfigurationException::class);
-        $this->expectExceptionMessage('Total discount cannot exceed the coupon total.');
+        $this->expectExceptionMessage('Total discount cannot be negative.');
 
         $data = new CouponData(
             items:         [new ItemData('A', 10000, 'cope', 1.0, 90000, 'D')],
             payments:      [new PaymentData(PaymentType::Cash, 900)],
             operatorId:    'John',
-            totalDiscount: 901,
+            totalDiscount: -1,
         );
 
-        $this->builder->build($this->snapshot, $data, $this->config, couponId: 12);
+        $this->builder->build($this->snapshot, $data, $this->config, couponId: 22);
     }
 
     /**

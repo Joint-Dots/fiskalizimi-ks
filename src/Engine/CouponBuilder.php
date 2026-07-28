@@ -213,11 +213,12 @@ final class CouponBuilder
             }
         }
 
-        $itemTotal = $this->itemTotalInFiscalUnits($data->items);
-
-        if ($data->totalDiscount > $itemTotal) {
-            throw new FiscalConfigurationException('Total discount cannot exceed the coupon total.');
-        }
+        // There is deliberately no upper bound. An item's Total is what is left
+        // after its markdown, so the discount and the total are disjoint amounts
+        // whose sum is the pre-discount subtotal — a discount can never exceed
+        // that, and no comparison against the total means anything. Capping it at
+        // the total rejected every coupon marked down by more than half, where
+        // the money taken off is by definition larger than the money left.
 
         foreach ($data->payments as $payment) {
             if (!$payment instanceof PaymentData) {
