@@ -65,7 +65,9 @@ class AtkSubmissionTest extends TestCase
 
         $this->assertSame(FiscalStatus::Fiscalized, $result->status);
         $this->assertNotNull($result->transactionNo);
-        $this->assertGreaterThan(0, $result->transactionNo);
+        // Digits only, and never a wrapped negative: the uint64 must survive the
+        // round trip whole.
+        $this->assertMatchesRegularExpression('/^[1-9]\d*$/', $result->transactionNo);
         $this->assertMatchesRegularExpression(VerificationNo::PATTERN, $result->verificationNo);
         $this->assertStringContainsString('|', $result->citizenQr);
     }

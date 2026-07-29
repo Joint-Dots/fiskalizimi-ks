@@ -46,7 +46,9 @@ return new class extends Migration
                 $t->timestamp('fiscalized_at')->nullable();
             }
             if (!Schema::hasColumn($t->getTable(), 'atk_transaction_no')) {
-                $t->unsignedBigInteger('atk_transaction_no')->nullable();
+                // uint64, as a 20-digit decimal string: its upper half does not
+                // fit a signed 64-bit column and would be stored wrapped.
+                $t->string('atk_transaction_no', 20)->nullable();
             }
             if (!Schema::hasColumn($t->getTable(), 'idempotency_key')) {
                 $t->char('idempotency_key', 64)->nullable();

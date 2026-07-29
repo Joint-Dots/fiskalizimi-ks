@@ -62,7 +62,7 @@ class FiscalizeEndpointTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('status', 'fiscalized');
-        $response->assertJsonPath('transaction_no', 9912345);
+        $response->assertJsonPath('transaction_no', '9912345');
         $this->assertMatchesRegularExpression(VerificationNo::PATTERN, $response->json('verification_no'));
         $this->assertStringContainsString('|', $response->json('citizen_qr'));
     }
@@ -121,7 +121,7 @@ class FiscalizeEndpointTest extends TestCase
     private function fakeAtk(): void
     {
         $atk = Mockery::mock(AtkClientInterface::class);
-        $atk->shouldReceive('submit')->once()->andReturn(9912345);
+        $atk->shouldReceive('submit')->once()->andReturn("9912345");
 
         $this->app->instance(AtkClientInterface::class, $atk);
     }

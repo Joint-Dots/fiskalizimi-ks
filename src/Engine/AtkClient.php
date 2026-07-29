@@ -31,7 +31,7 @@ final class AtkClient implements AtkClientInterface
         $this->http = $http ?? new Client();
     }
 
-    public function submit(SignedPayload $payload, FiscalConfig $config): int
+    public function submit(SignedPayload $payload, FiscalConfig $config): string
     {
         $endpoint = rtrim($config->atkBaseUrl, '/') . '/' . ltrim($config->atkCouponPath, '/');
 
@@ -50,7 +50,11 @@ final class AtkClient implements AtkClientInterface
 
         $statusCode = $response->getStatusCode();
         $body       = (string) $response->getBody();
-        $decoded    = json_decode($body, true);
+        // ATK's TransactionNo is a uint64, and its upper half does not fit PHP's
+        // signed int. Without this flag json_decode turns those values into
+        // floats, which lose the low digits before a cast can wrap them negative
+        // — the number stored then matches nothing ATK holds.
+        $decoded    = json_decode($body, true, 512, JSON_BIGINT_AS_STRING);
 
         if ($statusCode < 200 || $statusCode >= 300) {
             $message = is_array($decoded)
@@ -83,6 +87,19 @@ final class AtkClient implements AtkClientInterface
             );
         }
 
-        return (int) $transactionNo;
+        // A float here means the digits were already lost in the JSON literal
+        // itself, so there is no faithful value left to record. Treating it as
+        // unknown holds the coupon for an operator rather than filing a number
+        // that is not ATK's.
+        if (is_float($transactionNo)) {
+            throw new FiscalSubmissionException(
+                "ATK accepted the request (HTTP {$statusCode}) but its transaction number could not be read "
+                . "exactly, so the coupon's fate at ATK is unknown. Body: {$body}",
+                retryable: true,
+                unknown: true,
+            );
+        }
+
+        return (string) $transactionNo;
     }
 }

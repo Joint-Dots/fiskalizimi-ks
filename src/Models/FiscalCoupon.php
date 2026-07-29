@@ -25,7 +25,10 @@ class FiscalCoupon extends Model
     protected $casts = [
         'fiscal_response'    => 'array',
         'fiscal_time'        => 'integer',
-        'atk_transaction_no' => 'integer',
+        // Deliberately not cast to integer: ATK's transaction number is a uint64
+        // whose upper half wraps negative in PHP's signed int. It is stored and
+        // read as a decimal string.
+        'atk_transaction_no' => 'string',
         'fiscalized_at'      => 'datetime',
         // When ATK first answered this submission unreadably. Optional: only
         // consumers that retry an unknown result before escalating populate it.

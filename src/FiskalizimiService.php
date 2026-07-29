@@ -175,7 +175,7 @@ final class FiskalizimiService
             verificationNo: (string) $coupon->fiscal_verification_no,
             citizenQr:      (string) $coupon->fiscal_citizen_qr,
             fiscalTime:     (int) $coupon->fiscal_time,
-            transactionNo:  $coupon->atk_transaction_no ? (int) $coupon->atk_transaction_no : null,
+            transactionNo:  $coupon->atk_transaction_no ? (string) $coupon->atk_transaction_no : null,
             status:         FiscalStatus::from((string) $coupon->fiscal_status),
             error:          $coupon->fiscal_error ?: null,
         );

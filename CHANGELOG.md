@@ -5,6 +5,29 @@ Semantic Versioning and the Keep a Changelog format.
 
 ## [Unreleased]
 
+Contract change. ATK's `TransactionNo` is a **uint64** and is now carried as a
+decimal **string** everywhere: `AtkClientInterface::submit()`,
+`FiscalResult::$transactionNo`, `kuponat_fiskal.atk_transaction_no`, and
+`transaction_no` on the REST endpoint. Callers that typed it as `int` must widen
+to `string`; JSON consumers now receive `"18446744073709551615"` rather than a
+number (which a JavaScript client could not have held either).
+
+### Fixed
+
+- Transaction numbers above `PHP_INT_MAX` were destroyed on receipt. `json_decode`
+  turned them into floats — losing the low digits — and the `(int)` cast then
+  wrapped them negative, so roughly every other coupon recorded an identifier ATK
+  had never issued, and the one value ATK can be queried by was gone. The response
+  is now decoded with `JSON_BIGINT_AS_STRING` and the number never passes through
+  `int`. A transaction number that arrives as a float is treated as an *unknown*
+  result rather than stored inexactly.
+
+### Changed
+
+- `atk_transaction_no` is a `string(20)` column. Existing installs need their own
+  migration to widen it; values already wrapped negative are not recoverable from
+  the local record, since the original digits were lost before storage.
+
 ## [0.8.0] - 2026-07-28
 
 ### Fixed

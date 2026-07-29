@@ -52,13 +52,13 @@ class FiskalizimiServiceTest extends TestCase
     public function test_successful_fiscalization_returns_fiscalized_result(): void
     {
         $atk = Mockery::mock(AtkClientInterface::class);
-        $atk->shouldReceive('submit')->once()->andReturn(9912345);
+        $atk->shouldReceive('submit')->once()->andReturn("9912345");
 
         $service = new FiskalizimiService(new CouponBuilder(), new Signer(), new QrGenerator(), $atk);
         $result  = $service->fiscalize($this->couponData(), $this->config);
 
         $this->assertSame(FiscalStatus::Fiscalized, $result->status);
-        $this->assertSame(9912345, $result->transactionNo);
+        $this->assertSame("9912345", $result->transactionNo);
         $this->assertNotEmpty($result->verificationNo);
         $this->assertNotEmpty($result->citizenQr);
         $this->assertStringContainsString('|', $result->citizenQr);
@@ -71,7 +71,7 @@ class FiskalizimiServiceTest extends TestCase
     public function test_fiscalize_without_a_verification_number_generates_one(): void
     {
         $atk = Mockery::mock(AtkClientInterface::class);
-        $atk->shouldReceive('submit')->once()->andReturn(9912345);
+        $atk->shouldReceive('submit')->once()->andReturn("9912345");
 
         $service = new FiskalizimiService(new CouponBuilder(), new Signer(), new QrGenerator(), $atk);
         $result  = $service->fiscalize($this->couponData(verificationNo: null), $this->config);

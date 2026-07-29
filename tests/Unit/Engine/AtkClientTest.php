@@ -60,7 +60,50 @@ class AtkClientTest extends TestCase
             $this->config()
         );
 
-        $this->assertSame(12345, $transactionNo);
+        $this->assertSame('12345', $transactionNo);
+    }
+
+    /**
+     * ATK's TransactionNo is a uint64. Everything above PHP_INT_MAX used to be
+     * decoded as a float and then wrapped negative by an (int) cast, so roughly
+     * half of all coupons recorded a transaction number ATK had never issued.
+     */
+    public function test_transaction_id_above_php_int_max_survives_intact(): void
+    {
+        $client = $this->clientWithResponse(new Response(
+            200,
+            ['Content-Type' => 'application/json'],
+            '{"message":"ok","transaction_id":18446744073709551615}'
+        ));
+
+        $transactionNo = $client->submit(
+            new SignedPayload('details', 'signature'),
+            $this->config()
+        );
+
+        $this->assertSame('18446744073709551615', $transactionNo);
+    }
+
+    /**
+     * A JSON float has already dropped the low digits of a uint64, so there is no
+     * faithful number left to store. Holding the coupon as unknown beats filing
+     * an identifier that matches nothing at ATK.
+     */
+    public function test_a_non_integer_transaction_number_is_an_unknown_result(): void
+    {
+        $client = $this->clientWithResponse(new Response(
+            200,
+            ['Content-Type' => 'application/json'],
+            '{"message":"ok","transaction_id":1.8446744073709552e19}'
+        ));
+
+        try {
+            $client->submit(new SignedPayload('details', 'signature'), $this->config());
+            $this->fail('Expected a FiscalSubmissionException.');
+        } catch (FiscalSubmissionException $e) {
+            $this->assertTrue($e->unknown);
+            $this->assertTrue($e->retryable);
+        }
     }
 
     /**
