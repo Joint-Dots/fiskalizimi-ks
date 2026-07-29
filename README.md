@@ -51,7 +51,7 @@ before production use.
 ## Requirements
 
 - PHP 8.2 or later
-- Laravel 11, 12, or 13
+- Laravel 12 or 13
 - OpenSSL PHP extension
 - Mbstring PHP extension
 - A database supported by Laravel

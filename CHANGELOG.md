@@ -21,12 +21,27 @@ number (which a JavaScript client could not have held either).
   is now decoded with `JSON_BIGINT_AS_STRING` and the number never passes through
   `int`. A transaction number that arrives as a float is treated as an *unknown*
   result rather than stored inexactly.
+- An amount whose half fell on a fiscal unit converted differently depending on
+  the PHP build. A float holds `1.005` as `1.00499999999999989`, so scaling it by
+  binary arithmetic lands just under the half-way mark; PHP 8.3 and earlier
+  rounded it up regardless because `round()` first snapped its argument to fifteen
+  significant digits, while PHP 8.4 removed that compensation and rounded it down.
+  The same coupon therefore carried 101 cents on one runtime and 100 on another.
+  `FiskalizimiMoney` now rounds the decimal digits the caller wrote, so every
+  supported PHP version agrees.
 
 ### Changed
 
 - `atk_transaction_no` is a `string(20)` column. Existing installs need their own
   migration to widen it; values already wrapped negative are not recoverable from
   the local record, since the original digits were lost before storage.
+
+### Removed
+
+- Laravel 11 is no longer supported. It has passed end of security support, and
+  every `11.x` release now carries unpatched advisories that Composer's audit
+  refuses to install, so the constraint could not be honoured in practice. The
+  package requires Laravel 12 or 13; PHP 8.2 remains supported, on Laravel 12.
 
 ## [0.8.0] - 2026-07-28
 
