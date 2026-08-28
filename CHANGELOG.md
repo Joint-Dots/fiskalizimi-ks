@@ -3,7 +3,36 @@
 All notable public changes are documented in this file. The project follows
 Semantic Versioning and the Keep a Changelog format.
 
-## [Unreleased]
+## [0.9.1] - 2026-08-28
+
+### Fixed
+
+- Every repeated setter on the generated messages declared
+  `Google\Protobuf\Internal\RepeatedField`, which is where the class lived under
+  protobuf 3.x. On the 4.x and 5.x runtimes this package requires it is
+  `Google\Protobuf\RepeatedField`, and the old name survives only as a
+  `class_alias` written at the foot of the new class's own file. An alias has no
+  file of its own, so Composer can never load that name: `class_exists` on it
+  answers false until something unrelated has pulled in `RepeatedField.php`.
+  Nothing broke at runtime, because by the time a coupon is built the real class
+  is loaded and the alias exists — but any consumer running static analysis saw
+  four signatures naming a class that could not be resolved, and a bare
+  `class_exists` check against the old name answered wrongly. The generated code
+  now names the class protobuf actually ships.
+- An amount whose half fell on a fiscal unit converted differently depending on
+  the PHP build. A float holds `1.005` as `1.00499999999999989`, so scaling it by
+  binary arithmetic lands just under the half-way mark; PHP 8.3 and earlier
+  rounded it up regardless because `round()` first snapped its argument to fifteen
+  significant digits, while PHP 8.4 removed that compensation and rounded it down.
+  The same coupon therefore carried 101 cents on one runtime and 100 on another.
+  `FiskalizimiMoney` now rounds the decimal digits the caller wrote, so every
+  supported PHP version agrees.
+
+## [0.9.0] - 2026-07-29
+
+> Note: this section was still headed "Unreleased" when `0.9.0` was tagged from
+> it. What the tag shipped is everything below; the rounding fix that sat here
+> alongside it landed afterwards and ships in 0.9.1.
 
 Contract change. ATK's `TransactionNo` is a **uint64** and is now carried as a
 decimal **string** everywhere: `AtkClientInterface::submit()`,
@@ -21,14 +50,6 @@ number (which a JavaScript client could not have held either).
   is now decoded with `JSON_BIGINT_AS_STRING` and the number never passes through
   `int`. A transaction number that arrives as a float is treated as an *unknown*
   result rather than stored inexactly.
-- An amount whose half fell on a fiscal unit converted differently depending on
-  the PHP build. A float holds `1.005` as `1.00499999999999989`, so scaling it by
-  binary arithmetic lands just under the half-way mark; PHP 8.3 and earlier
-  rounded it up regardless because `round()` first snapped its argument to fifteen
-  significant digits, while PHP 8.4 removed that compensation and rounded it down.
-  The same coupon therefore carried 101 cents on one runtime and 100 on another.
-  `FiskalizimiMoney` now rounds the decimal digits the caller wrote, so every
-  supported PHP version agrees.
 
 ### Changed
 
@@ -218,6 +239,7 @@ Initial public integration-preview release.
 - Private keys, signatures, QR payloads, and coupon lines are excluded from
   package request logs
 
-[Unreleased]: https://github.com/jointdots/fiskalizimi-ks/compare/v0.4.0...HEAD
+[0.9.1]: https://github.com/jointdots/fiskalizimi-ks/compare/0.9.0...0.9.1
+[0.9.0]: https://github.com/jointdots/fiskalizimi-ks/compare/0.8.0...0.9.0
 [0.4.0]: https://github.com/jointdots/fiskalizimi-ks/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/jointdots/fiskalizimi-ks/releases/tag/v0.3.0
